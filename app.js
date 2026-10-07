@@ -2,6 +2,7 @@
   'use strict';
 
   const STORAGE_KEY = 'sabeel.app.v1';
+  const BOOK_FALLBACK_PREFIX = 'sabeel.book.file.';
   const todayKey = () => formatDate(new Date());
   const defaultPrayers = [
     { id:'fajr', name:'Фаджр', time:'05:15', required:true },
@@ -23,7 +24,7 @@
   ];
 
   const clone = value => JSON.parse(JSON.stringify(value));
-  const defaultState = () => ({ version:1, settings:{ name:'', prayers:clone(defaultPrayers) }, habits:[], books:[], days:{} });
+  const defaultState = () => ({ version:2, settings:{ name:'', prayers:clone(defaultPrayers) }, habits:[], books:[], days:{} });
   let state = loadState();
   let activeScreen = 'home';
   let calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
@@ -41,6 +42,7 @@
       const savedPrayers = Array.isArray(saved?.settings?.prayers) ? saved.settings.prayers : [];
       const prayerMap = new Map(savedPrayers.filter(p => p && p.id !== 'tahajjud').map(p => [p.id, p]));
       const prayers = base.settings.prayers.map(p => ({ ...p, ...(prayerMap.get(p.id) || {}) }));
+      Object.values(saved.days && typeof saved.days === 'object' ? saved.days : {}).forEach(day=>{ if(day && typeof day==='object') day.readingSeconds=Number(day.readingSeconds||0); });
       return {
         ...base, ...saved,
         settings:{...base.settings,...saved.settings,prayers},
@@ -52,29 +54,100 @@
   function openBookDb(){
     if(bookDbPromise) return bookDbPromise;
     bookDbPromise = new Promise((resolve,reject)=>{
-      if(!('indexedDB' in window)){ reject(new Error('IndexedDB недоступен')); return; }
-      const request=indexedDB.open('sabeel.books.v1',1);
-      request.onupgradeneeded=()=>{ if(!request.result.objectStoreNames.contains('books')) request.result.createObjectStore('books',{keyPath:'id'}); };
-      request.onsuccess=()=>resolve(request.result);
-      request.onerror=()=>reject(request.error || new Error('Не удалось открыть хранилище книг'));
+      try{
+        if(!window.indexedDB) throw new Error('IndexedDB unavailable');
+        const request=indexedDB.open('sabeel.books.v2',1);
+        request.onupgradeneeded=()=>{
+          if(!request.result.objectStoreNames.contains('books')) request.result.createObjectStore('books',{keyPath:'id'});
+        };
+        request.onsuccess=()=>resolve(request.result);
+        request.onerror=()=>reject(request.error || new Error('IndexedDB unavailable'));
+      }catch(error){ reject(error); }
     });
     return bookDbPromise;
   }
-  async function putBookFile(id,file){
-    const db=await openBookDb();
+  function blobToDataUrl(blob){
     return new Promise((resolve,reject)=>{
-      const tx=db.transaction('books','readwrite'); tx.objectStore('books').put({id,blob:file});
-      tx.oncomplete=()=>resolve(); tx.onerror=()=>reject(tx.error || new Error('Не удалось сохранить книгу'));
+      const reader=new FileReader();
+      reader.onload=()=>resolve(reader.result);
+      reader.onerror=()=>reject(reader.error || new Error('Не удалось прочитать файл'));
+      reader.readAsDataURL(blob);
     });
   }
+  function dataUrlToBlob(dataUrl){
+    const comma=dataUrl.indexOf(',');
+    if(comma<0) throw new Error('Повреждённый файл');
+    const meta=dataUrl.slice(0,comma);
+    const raw=atob(dataUrl.slice(comma+1));
+    const bytes=new Uint8Array(raw.length);
+    for(let i=0;i<raw.length;i++) bytes[i]=raw.charCodeAt(i);
+    const match=meta.match(/^data:([^;]+)/);
+    return new Blob([bytes],{type:match?.[1] || 'application/octet-stream'});
+  }
+  async function putBookFile(id,file){
+    try{
+      const db=await openBookDb();
+      await new Promise((resolve,reject)=>{
+        const tx=db.transaction('books','readwrite');
+        tx.objectStore('books').put({id,blob:file});
+        tx.oncomplete=resolve; tx.onerror=()=>reject(tx.error || new Error('Не удалось сохранить книгу'));
+        tx.onabort=()=>reject(tx.error || new Error('Хранилище книг недоступно'));
+      });
+      return {storage:'indexeddb'};
+    }catch(error){
+      // Direct file:// pages are inconsistent across browsers with IndexedDB.
+      // Keep a small-file fallback so the library remains usable without a server.
+      const dataUrl=await blobToDataUrl(file);
+      if(dataUrl.length>4_500_000) throw new Error('Файл слишком большой для резервного локального хранения');
+      localStorage.setItem(BOOK_FALLBACK_PREFIX+id,dataUrl);
+      return {storage:'local'};
+    }
+  }
   async function getBookFile(id){
-    const db=await openBookDb();
-    return new Promise((resolve,reject)=>{ const req=db.transaction('books','readonly').objectStore('books').get(id); req.onsuccess=()=>resolve(req.result?.blob || null); req.onerror=()=>reject(req.error); });
+    try{
+      const db=await openBookDb();
+      const result=await new Promise((resolve,reject)=>{
+        const req=db.transaction('books','readonly').objectStore('books').get(id);
+        req.onsuccess=()=>resolve(req.result?.blob || null); req.onerror=()=>reject(req.error);
+      });
+      if(result) return result;
+    }catch(error){ /* use local fallback below */ }
+    const dataUrl=localStorage.getItem(BOOK_FALLBACK_PREFIX+id);
+    if(dataUrl) return dataUrlToBlob(dataUrl);
+    // Read files created by the previous books database version.
+    try{
+      const legacy=await new Promise((resolve,reject)=>{
+        const request=indexedDB.open('sabeel.books.v1');
+        request.onsuccess=()=>{
+          const db=request.result;
+          if(!db.objectStoreNames.contains('books')){ db.close(); resolve(null); return; }
+          const req=db.transaction('books','readonly').objectStore('books').get(id);
+          req.onsuccess=()=>{ const blob=req.result?.blob || null; db.close(); resolve(blob); };
+          req.onerror=()=>{ db.close(); reject(req.error); };
+        };
+        request.onerror=()=>reject(request.error);
+      });
+      if(legacy) return legacy;
+    }catch(error){ /* no legacy storage */ }
+    return null;
   }
   async function deleteBookFile(id){
-    try{ const db=await openBookDb(); await new Promise((resolve,reject)=>{ const tx=db.transaction('books','readwrite'); tx.objectStore('books').delete(id); tx.oncomplete=resolve; tx.onerror=()=>reject(tx.error); }); }catch(error){ console.warn('Book file delete failed',error); }
+    localStorage.removeItem(BOOK_FALLBACK_PREFIX+id);
+    try{
+      const db=await openBookDb();
+      await new Promise((resolve,reject)=>{
+        const tx=db.transaction('books','readwrite'); tx.objectStore('books').delete(id);
+        tx.oncomplete=resolve; tx.onerror=()=>reject(tx.error);
+      });
+    }catch(error){ console.warn('Book file delete failed',error); }
   }
-  async function clearBookFiles(){ try{ const db=await openBookDb(); await new Promise((resolve,reject)=>{ const tx=db.transaction('books','readwrite'); tx.objectStore('books').clear(); tx.oncomplete=resolve; tx.onerror=()=>reject(tx.error); }); }catch(error){ console.warn('Book storage reset failed',error); } }
+  async function clearBookFiles(){
+    Object.keys(localStorage).filter(k=>k.startsWith(BOOK_FALLBACK_PREFIX)).forEach(k=>localStorage.removeItem(k));
+    try{
+      const db=await openBookDb();
+      await new Promise((resolve,reject)=>{ const tx=db.transaction('books','readwrite'); tx.objectStore('books').clear(); tx.oncomplete=resolve; tx.onerror=()=>reject(tx.error); });
+    }catch(error){ console.warn('Book storage reset failed',error); }
+  }
   function bookKind(file){
     const ext=(file.name.split('.').pop()||'').toLowerCase();
     if(ext==='pdf' || file.type==='application/pdf') return 'pdf';
@@ -88,21 +161,32 @@
   function totalReadingToday(){ return Number(getDay().learning.reading||0); }
   function checkpointReading(){
     if(!readerSession) return;
-    const now=Date.now(); const delta=Math.max(0,Math.floor((now-readerSession.checkpointAt)/1000));
-    readerSession.checkpointAt=now; readerSession.elapsedSec+=delta;
+    const now=Date.now();
+    const delta=Math.max(0,Math.floor((now-readerSession.checkpointAt)/1000));
+    readerSession.checkpointAt=now;
+    readerSession.elapsedSec+=delta;
     readerSession.pendingSec+=delta;
-    const minutes=Math.floor(readerSession.pendingSec/60);
-    if(minutes>0){ getDay().learning.reading += minutes; readerSession.pendingSec -= minutes*60; save(); renderLearning(); renderSummary(); renderStats(); updateReaderTimer(); }
+    const day=getDay();
+    day.readingSeconds=Number(day.readingSeconds||0)+delta;
+    const minutes=Math.floor(day.readingSeconds/60);
+    if(minutes>0){
+      day.learning.reading += minutes;
+      day.readingSeconds -= minutes*60;
+      save(); renderLearning(); renderSummary(); renderStats(); renderBooks();
+    }
+    updateReaderTimer();
   }
   function startReadingSession(book){
     stopReadingSession();
     readerSession={bookId:book.id,startedAt:Date.now(),checkpointAt:Date.now(),elapsedSec:0,pendingSec:0};
     updateReaderTimer();
-    clearInterval(readerTimerHandle); readerTimerHandle=setInterval(()=>{ checkpointReading(); updateReaderTimer(); },15000);
+    clearInterval(readerTimerHandle); readerTimerHandle=setInterval(()=>checkpointReading(),5000);
   }
   function stopReadingSession(){
     if(!readerSession) return;
-    checkpointReading(); clearInterval(readerTimerHandle); readerTimerHandle=null; readerSession=null;
+    checkpointReading();
+    clearInterval(readerTimerHandle); readerTimerHandle=null;
+    readerSession=null;
   }
   function updateReaderTimer(){
     if(!readerSession) return;
@@ -126,8 +210,15 @@
       if(!kind){ showToast('Поддерживаются PDF, TXT, MD и HTML'); continue; }
       const id=`book_${Date.now()}_${Math.random().toString(16).slice(2)}`;
       const book={id,title:file.name.replace(/\.[^.]+$/,''),fileName:file.name,size:file.size,kind,addedAt:Date.now(),addedAtLabel:formatLongDate(new Date())};
-      try{ await putBookFile(id,file); state.books.unshift(book); save(); renderBooks(); showToast(`«${book.title}» добавлена`); }
-      catch(error){ console.error(error); showToast('Не удалось сохранить книгу. Возможно, хранилище переполнено.'); }
+      try{
+        const storage=await putBookFile(id,file);
+        book.storage=storage.storage;
+        state.books.unshift(book); save(); renderBooks();
+        showToast(`«${book.title}» добавлена`);
+      }catch(error){
+        console.error(error);
+        showToast(error?.message || 'Не удалось сохранить книгу');
+      }
     }
   }
   async function removeBook(id){
@@ -143,7 +234,7 @@
       document.getElementById('readerTitle').textContent=book.title; document.getElementById('readerStage').innerHTML='';
       if(book.kind==='pdf'){
         const url=URL.createObjectURL(blob);
-        document.getElementById('readerStage').innerHTML=`<iframe class="pdf-reader" src="${url}#toolbar=1&navpanes=0&view=FitH" title="${esc(book.title)}"></iframe>`;
+        document.getElementById('readerStage').innerHTML=`<div class="pdf-reader-wrap"><iframe class="pdf-reader" src="${url}#toolbar=1&navpanes=0&view=FitH" title="${esc(book.title)}"></iframe><div class="pdf-fallback"><p>Если просмотрщик PDF не открылся на этом устройстве:</p><a class="secondary-button" href="${url}" target="_blank" rel="noopener">Открыть PDF отдельно</a></div></div>`;
       } else if(book.kind==='text'){
         const text=await blob.text(); document.getElementById('readerStage').innerHTML=`<article class="text-reader">${esc(text).replace(/\n/g,'<br>')}</article>`;
       } else {
@@ -154,7 +245,7 @@
   }
   function closeReader(){
     stopReadingSession();
-    const stage=document.getElementById('readerStage'); const frame=stage?.querySelector('iframe'); if(frame?.src?.startsWith('blob:')) URL.revokeObjectURL(frame.src);
+    const stage=document.getElementById('readerStage'); const frame=stage?.querySelector('iframe'); if(frame?.src?.startsWith('blob:')) URL.revokeObjectURL(frame.src); const pdfLink=stage?.querySelector('.pdf-fallback a'); if(pdfLink?.href?.startsWith('blob:')) URL.revokeObjectURL(pdfLink.href);
     if(stage) stage.innerHTML='';
     document.getElementById('readerView').hidden=true; document.getElementById('booksLibraryView').hidden=false; renderBooks(); renderAll(false);
   }
@@ -164,8 +255,8 @@
   function formatDate(date){ return [date.getFullYear(),String(date.getMonth()+1).padStart(2,'0'),String(date.getDate()).padStart(2,'0')].join('-'); }
   function parseDate(key){ const [y,m,d]=key.split('-').map(Number); return new Date(y,m-1,d); }
   function getDay(key=todayKey()){
-    if(!state.days[key]) state.days[key]={ prayers:{}, habits:{}, learning:{reading:0,review:0,memorizing:0,knowledge:0} };
-    const day=state.days[key]; day.prayers ||= {}; day.habits ||= {}; day.learning ||= {reading:0,review:0,memorizing:0,knowledge:0};
+    if(!state.days[key]) state.days[key]={ prayers:{}, habits:{}, learning:{reading:0,review:0,memorizing:0,knowledge:0}, readingSeconds:0 };
+    const day=state.days[key]; day.prayers ||= {}; day.habits ||= {}; day.learning ||= {reading:0,review:0,memorizing:0,knowledge:0}; day.readingSeconds=Number(day.readingSeconds||0);
     learningTypes.forEach(x=>{ if(typeof day.learning[x.id] !== 'number') day.learning[x.id]=0; });
     return day;
   }
