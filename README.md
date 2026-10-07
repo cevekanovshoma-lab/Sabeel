@@ -1,2 +1,0 @@
-# Sabeel
-Sabeel Ilya Aljannah
