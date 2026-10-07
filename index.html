@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0d4a3a">
+  <meta name="description" content="Мой день — спокойный персональный трекер поклонения, привычек, знаний и продуктивности.">
+  <title>Мой день — Sabeel</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="hero" aria-label="Шапка приложения">
+      <div class="hero-pattern" aria-hidden="true"></div>
+      <div class="hero-content">
+        <div class="topbar">
+          <div class="brand-lockup">
+            <div class="brand-mark" aria-hidden="true">
+              <svg viewBox="0 0 48 48" role="img">
+                <path d="M24 6v10M16 16h16M10 42h28M13 42V25h22v17M18 25v-7h12v7M21 42V31h6v11" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M8 21c5-4 9-6 16-6s11 2 16 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <div>
+              <div class="brand-name">Sabeel</div>
+              <div class="brand-subtitle">мой день</div>
+            </div>
+          </div>
+          <button class="icon-button" id="settingsButton" aria-label="Настройки" title="Настройки">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm8 3.5-.1-1.3-2-.5a6.8 6.8 0 0 0-.6-1.5l1.1-1.8-.9-.9-1.8 1.1a6.8 6.8 0 0 0-1.5-.6l-.5-2L12 4.4l-1.3.1-.5 2a6.8 6.8 0 0 0-1.5.6L6.9 6 6 6.9l1.1 1.8a6.8 6.8 0 0 0-.6 1.5l-2 .5L4.4 12l.1 1.3 2 .5c.2.5.4 1 .6 1.5L6 17.1l.9.9 1.8-1.1c.5.3 1 .5 1.5.6l.5 2 1.3.1 1.3-.1.5-2a6.8 6.8 0 0 0 1.5-.6l1.8 1.1.9-.9-1.1-1.8c.3-.5.5-1 .6-1.5l2-.5.1-1.3Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        <div class="hero-date">
+          <div>
+            <p class="eyebrow" id="gregorianDate">Сегодня</p>
+            <h1 id="greeting">Ассаляму алейкум</h1>
+            <p class="hijri" id="hijriDate"></p>
+          </div>
+          <div class="crescent" aria-hidden="true">
+            <span></span>
+          </div>
+        </div>
+      </div>
+      <div class="arch" aria-hidden="true">
+        <svg viewBox="0 0 390 74" preserveAspectRatio="none"><path d="M0 74V63h45V49c0-10 8-18 18-18h0c10 0 18 8 18 18v14h34V38c0-14 11-25 25-25h0c14 0 25 11 25 25v25h22V20c0-9 7-16 16-16s16 7 16 16v43h22V38c0-14 11-25 25-25h0c14 0 25 11 25 25v25h34V49c0-10 8-18 18-18h0c10 0 18 8 18 18v14h45v11Z" fill="currentColor"/></svg>
+      </div>
+    </header>
+
+    <main id="mainContent" class="main-content">
+      <section class="screen active" id="homeScreen" data-screen="home">
+        <section class="progress-card card" aria-label="Прогресс сегодня">
+          <div class="progress-copy">
+            <span class="section-kicker">Прогресс сегодня</span>
+            <div class="progress-percent" id="dayScore">0%</div>
+            <div class="progress-track"><span id="dayProgressBar"></span></div>
+            <p id="habitProgressLabel">0 из 0 привычек</p>
+          </div>
+          <div class="progress-message">
+            <span class="ornament">❧</span>
+            <strong>Маленькие шаги</strong>
+            <span>каждый день<br>приводят к большим<br>результатам</span>
+          </div>
+        </section>
+
+        <section class="next-goal card" aria-labelledby="nextGoalTitle">
+          <div class="next-goal-copy">
+            <div class="label-row"><span class="status-dot"></span><span>Следующая цель</span></div>
+            <h2 id="nextGoalTitle">—</h2>
+            <p id="nextGoalMeta">Все запланированные цели выполнены</p>
+          </div>
+          <div class="goal-orbit" aria-hidden="true"><div class="orbit-core" id="goalInitial">—</div></div>
+        </section>
+
+        <section class="section-block" aria-labelledby="prayerHeading">
+          <div class="section-heading">
+            <div><span class="section-kicker">Поклонение</span><h2 id="prayerHeading">Намазы</h2></div>
+            <div class="progress-chip" id="prayerProgress">0 / 5</div>
+          </div>
+          <div class="prayer-scroller" id="prayerScroller" aria-label="Намазы дня"></div>
+          <div class="prayer-progress-track"><span id="prayerProgressBar"></span></div>
+        </section>
+
+        <section class="dashboard-grid">
+          <section class="section-block habits-panel">
+            <div class="section-heading">
+              <div><span class="section-kicker">Постоянство</span><h2>Привычки сегодня</h2></div>
+              <button class="text-button" data-open-add-habit>Все привычки <span>›</span></button>
+            </div>
+            <div class="habit-list" id="habitList"></div>
+          </section>
+
+          <section class="learning-card card">
+          <div class="learning-top">
+            <div><span class="section-kicker">Знания сегодня</span><h2><span id="learningTotal">0</span> мин</h2><p class="learning-subtitle">полезного времени сегодня</p></div>
+            <div class="book-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4.5A2.5 2.5 0 0 1 7.5 2H20v16H7.5A2.5 2.5 0 0 0 5 20.5v-16Z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5 20.5A2.5 2.5 0 0 1 7.5 18H20M9 6h7M9 9h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+          </div>
+          <div class="learning-grid" id="learningGrid"></div>
+          <button class="learning-add" data-open-add-learning>Добавить время <span>+</span></button>
+        </section>
+
+        <section class="utility-grid">
+          <article class="mini-card card">
+            <div class="mini-icon">↗</div><div><span class="section-kicker">День</span><strong id="completionLabel">Начало пути</strong></div>
+          </article>
+          <article class="mini-card card">
+            <div class="mini-icon">✦</div><div><span class="section-kicker">Серия</span><strong id="streakLabel">0 дней</strong></div>
+          </article>
+        </section>
+
+        <section class="hadith card">
+          <div class="hadith-ornament" aria-hidden="true">۞</div>
+          <span class="section-kicker">Напоминание</span>
+          <blockquote>«Самые любимые Аллаху дела — те, которые совершаются постоянно, даже если их мало».</blockquote>
+          <div class="hadith-source">— Сахих аль-Бухари, Сахих Муслим</div>
+        </section>
+      </section>
+
+      <section class="screen" id="habitsScreen" data-screen="habits">
+        <div class="page-heading"><span class="section-kicker">Ритм</span><h2>Привычки</h2><p>Небольшие действия, из которых складывается постоянство.</p></div>
+        <div class="habit-list large" id="habitListFull"></div>
+        <button class="primary-button full" data-open-add-habit>Добавить привычку <span>+</span></button>
+      </section>
+
+      <section class="screen" id="calendarScreen" data-screen="calendar">
+        <div class="page-heading"><span class="section-kicker">История</span><h2>Календарь</h2><p>Легко видеть регулярность и возвращаться к прожитым дням.</p></div>
+        <div class="calendar-card card"><div class="calendar-head"><button class="icon-button small" id="prevMonth">‹</button><strong id="calendarTitle"></strong><button class="icon-button small" id="nextMonth">›</button></div><div class="weekdays" id="weekdays"></div><div class="calendar-grid" id="calendarGrid"></div></div>
+        <div class="calendar-legend"><span><i class="legend-dot good"></i> хороший день</span><span><i class="legend-dot partial"></i> есть активность</span></div>
+      </section>
+
+      <section class="screen" id="booksScreen" data-screen="books">
+        <div id="booksLibraryView">
+          <div class="page-heading books-heading">
+            <div>
+              <span class="section-kicker">Тихое время</span>
+              <h2>Мои книги</h2>
+              <p>Загружайте книги на устройство и читайте в спокойном режиме. Время чтения считается автоматически.</p>
+            </div>
+            <button class="primary-button books-upload-button" id="uploadBookButton"><span>＋</span> Добавить книгу</button>
+            <input id="bookFileInput" class="visually-hidden" type="file" accept=".pdf,.txt,.md,.markdown,.html,.htm,application/pdf,text/plain,text/markdown,text/html">
+          </div>
+
+          <section class="reading-summary card">
+            <div class="reading-summary-icon">◷</div>
+            <div>
+              <span class="section-kicker">Чтение сегодня</span>
+              <strong id="readingTodayTotal">0 мин</strong>
+              <p>Время из книг автоматически добавляется в «Чтение» на главном экране.</p>
+            </div>
+            <button class="secondary-button" id="manualReadingButton">Добавить вручную</button>
+          </section>
+
+          <section class="book-library" id="bookLibrary" aria-live="polite"></section>
+        </div>
+
+        <div id="readerView" class="reader-view" hidden>
+          <div class="reader-topbar">
+            <button class="reader-back" id="readerBack">‹ <span>Книги</span></button>
+            <div class="reader-title-wrap">
+              <strong id="readerTitle">Книга</strong>
+              <span id="readerTimer" class="reader-timer">00:00</span>
+            </div>
+            <button class="reader-menu" id="readerClose" aria-label="Закрыть чтение">×</button>
+          </div>
+          <div class="reader-status"><span class="live-dot"></span><span>Время чтения засчитывается автоматически</span><strong id="readerTodayMinutes">0 мин сегодня</strong></div>
+          <div class="reader-stage" id="readerStage"></div>
+        </div>
+      </section>
+
+      <section class="screen" id="statsScreen">
+        <div class="page-heading"><span class="section-kicker">Постоянство</span><h2>Статистика</h2><p>Данные собраны из дневных записей, которые хранятся на устройстве.</p></div>
+        <div class="stats-grid" id="statsGrid"></div>
+        <div class="card weekly-card"><div class="section-heading"><div><span class="section-kicker">Последние 7 дней</span><h2>Ритм недели</h2></div></div><div class="week-bars" id="weekBars"></div></div>
+      </section>
+
+      <section class="screen" id="settingsScreen">
+        <div class="page-heading"><span class="section-kicker">Приложение</span><h2>Настройки</h2><p>Основные параметры Sabeel сохраняются прямо на устройстве.</p></div>
+        <div class="settings-list card">
+          <label class="setting-row"><span><strong>Имя</strong><small>Используется в приветствии</small></span><input id="nameSetting" type="text" maxlength="24" placeholder="Ваше имя"></label>
+          <div class="setting-row stacked"><span><strong>Времена намазов</strong><small>Можно настроить под ваш город</small></span><div class="prayer-settings" id="prayerSettings"></div></div>
+          <div class="setting-row"><span><strong>Сбросить данные</strong><small>Удалит локальные записи приложения</small></span><button class="danger-button" id="resetData">Сбросить</button></div>
+        </div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Основная навигация">
+      <button class="nav-item active" data-nav="home"><span class="nav-icon">⌂</span><span>Сегодня</span></button>
+      <button class="nav-item" data-nav="calendar"><span class="nav-icon">▦</span><span>Календарь</span></button>
+      <button class="nav-item" data-nav="books"><span class="nav-icon">▤</span><span>Книги</span></button>
+      <button class="nav-item" data-nav="stats"><span class="nav-icon">▥</span><span>Статистика</span></button>
+      <button class="nav-item" data-nav="habits"><span class="nav-icon">♡</span><span>Достижения</span></button>
+    </nav>
+  </div>
+
+  <div class="modal-backdrop" id="modalBackdrop" hidden>
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <button class="modal-close" id="modalClose" aria-label="Закрыть">×</button>
+      <span class="section-kicker">Новая привычка</span><h2 id="modalTitle">Добавить привычку</h2>
+      <form id="habitForm">
+        <label>Название<input id="habitName" name="name" required maxlength="50" placeholder="Например, Читать Коран"></label>
+        <label>Эмоция <span class="optional">для настроения</span></label>
+        <div class="emotion-picker" id="emotionPicker" role="radiogroup" aria-label="Эмоция привычки"></div>
+        <label>Время <span class="optional">необязательно</span><input id="habitTime" name="time" type="time"></label>
+        <div class="modal-actions"><button type="button" class="secondary-button" id="modalCancel">Отмена</button><button class="primary-button" type="submit">Сохранить</button></div>
+      </form>
+    </section>
+  </div>
+  <div class="modal-backdrop" id="readingModalBackdrop" hidden>
+    <section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="readingModalTitle">
+      <button class="modal-close" id="readingModalClose" aria-label="Закрыть">×</button>
+      <span class="section-kicker">Чтение вне приложения</span>
+      <h2 id="readingModalTitle">Добавить время</h2>
+      <p class="modal-description">Если сегодня читали с бумажной книги или другого устройства, добавьте минуты вручную.</p>
+      <form id="readingForm">
+        <label>Минуты<input id="manualReadingMinutes" type="number" min="1" max="1440" inputmode="numeric" required placeholder="30"></label>
+        <div class="modal-actions"><button type="button" class="secondary-button" id="readingModalCancel">Отмена</button><button class="primary-button" type="submit">Добавить</button></div>
+      </form>
+    </section>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>
